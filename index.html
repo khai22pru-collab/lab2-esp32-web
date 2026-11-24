@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HVKTMM · Smart Campus</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f1f5f9;color:#17324a;font:15px system-ui,sans-serif}
+main{max-width:1000px;margin:auto;padding:28px 20px}header{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:25px}
+h1{font-size:28px;margin:5px 0}h2{font-size:19px;margin:0 0 18px}p{margin:8px 0;color:#60768a}.eyebrow{color:#087e78;font-weight:750;letter-spacing:1.5px;font-size:12px}
+.badge{border-radius:30px;padding:8px 13px;background:#dce9ed;font-size:13px;font-weight:650}.online{background:#d2f5e5;color:#0c7850}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px}.card{background:white;border:1px solid #e0e7ef;border-radius:18px;padding:22px;box-shadow:0 7px 20px #15324a08}
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #edf1f5}.row:last-child{border:0}
+button{border:0;border-radius:10px;background:#e8eff6;color:#244660;padding:10px 15px;cursor:pointer;font:inherit;font-weight:650;min-width:85px}button.on{background:#087e78;color:white}button:disabled{opacity:.5;cursor:not-allowed}
+.danger{background:#fce5e5;color:#a32b38}.level{font-size:48px;font-weight:750;letter-spacing:-2px;margin:10px 0;color:#087e78}.track{height:14px;background:#e7edf3;border-radius:20px;overflow:hidden}.fill{height:100%;width:0;background:#23a6bb;transition:width .3s}
+.hint{font-size:12px;color:#60768a}.footer{margin-top:20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.present{color:#087e78;font-weight:700}
+</style>
+</head>
+<body>
+<main>
+<header><div><div class="eyebrow">HVKTMM / LAB 02</div><h1>Đại học thông minh</h1><p>Giám sát và điều khiển thiết bị · ESP32</p></div><span class="badge" id="connection">Đang kết nối...</span></header>
+<div class="grid">
+<section class="card"><h2>01 / Phòng họp</h2>
+<div class="row"><span>Đèn phòng họp</span><button data-key="1" id="roomLight">—</button></div>
+<div class="row"><span>Quạt phòng họp</span><button data-key="2" id="roomFan">—</button></div>
+<div class="row"><span>Đèn tự động</span><button data-key="5" id="autoLight">—</button></div>
+<p class="hint" id="sensors">Đang đọc cảm biến...</p>
+</section>
+<section class="card"><h2>02 / Ký túc xá</h2>
+<div class="row"><span>Đèn ký túc xá</span><button data-key="3" id="dormLight">—</button></div>
+<div class="row"><span>Hệ thống bơm</span><button data-key="4" id="pumpEnabled">—</button></div>
+<div class="row"><span>Máy bơm thực tế</span><b id="pumpOn">—</b></div>
+</section>
+<section class="card"><h2>03 / Bể nước mô phỏng</h2><div class="level" id="water">—%</div>
+<div class="track"><div class="fill" id="fill"></div></div>
+<p class="hint">Tự bơm lại ở 20% · Dừng bơm ở 80%</p>
+<div class="row"><span>Xả nước</span><button data-key="6" id="drainOn">—</button></div>
+</section>
+<section class="card"><h2>04 / Điểm danh <span id="count">0/3</span></h2>
+<div class="row"><span>Nguyễn Văn An</span><span id="student0">—</span></div>
+<div class="row"><span>Trần Thị Bình</span><span id="student1">—</span></div>
+<div class="row"><span>Lê Văn Cường</span><span id="student2">—</span></div>
+<p class="hint">Quét trên chip vân tay giả lập trong Wokwi.</p>
+</section>
+</div>
+<div class="footer"><span class="hint" id="updated">Chưa nhận dữ liệu</span><button class="danger" data-key="0">Tắt tất cả thiết bị</button></div>
+</main>
+<script>
+const el = id => document.getElementById(id);
+let busy = false, online = false;
+const accessKey = sessionStorage.getItem('deviceKey') || prompt('Nhập DEVICE_KEY của dự án:');
+if (accessKey) sessionStorage.setItem('deviceKey', accessKey);
+function buttons(){document.querySelectorAll('button').forEach(b=>b.disabled=busy||!online);}
+function status(ok){online=ok;el('connection').textContent=ok?'ESP32 đã kết nối':'Mất kết nối ESP32';el('connection').classList.toggle('online',ok);buttons();}
+function toggle(id,on,yes='BẬT',no='TẮT'){el(id).textContent=on?yes:no;el(id).classList.toggle('on',!!on);}
+function render(s){
+  if (!s.connected) { status(false); return; }
+  ['roomLight','roomFan','dormLight','pumpEnabled','drainOn'].forEach(k=>toggle(k,s[k]));
+  toggle('autoLight',s.autoLight,'AUTO','Bật AUTO');
+  el('pumpOn').textContent=s.pumpOn?'Đang chạy':'Đang nghỉ';
+  el('water').textContent=s.water+'%';el('fill').style.width=s.water+'%';
+  el('sensors').textContent='LDR: '+s.ldr+' · '+(s.ldr>600?'Trời tối':'Trời sáng')+' · '+(s.motion?'Có chuyển động':'Không chuyển động');
+  let n=0;s.attendance.forEach((a,i)=>{n+=a;el('student'+i).textContent=a?'Có mặt':'Chưa điểm danh';el('student'+i).classList.toggle('present',!!a);});
+  el('count').textContent=n+'/3';el('updated').textContent='Cập nhật: '+new Date().toLocaleTimeString('vi-VN');status(true);
+}
+async function request(path,options){
+  const r=await fetch(path,{cache:'no-store',...options,
+    headers:{...(options?.headers || {}),'X-Device-Key':accessKey}});
+  if(!r.ok)throw Error(r.status);
+  const result=await r.json();
+  if(path==='/api/state') render(result);
+  return result;
+}
+async function refresh(){
+  if(busy)return;busy=true;
+  try{await request('/api/state');}catch(e){status(false);}finally{busy=false;buttons();}
+}
+document.querySelectorAll('button[data-key]').forEach(b=>b.onclick=async()=>{
+  if(busy||!online)return;busy=true;buttons();
+  try{await request('/api/control',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'key='+b.dataset.key});setTimeout(refresh,400);}catch(e){status(false);}finally{busy=false;buttons();}
+});
+buttons();refresh();setInterval(refresh,1000);
+</script>
+</body>
+</html>
